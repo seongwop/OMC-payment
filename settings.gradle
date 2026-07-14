@@ -1,0 +1,5 @@
+rootProject.name = 'OMC-payment'
+
+include 'common'
+include 'arch-rules'
+include 'payment-service'

@@ -1,0 +1,27 @@
+{
+  "priority": 10,
+  "request": {
+    "method": "POST",
+    "url": "/v1/payments/confirm",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Basic dGVzdC1zZWNyZXQta2V5Og=="
+      }
+    },
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$[?(@.paymentKey =~ /.*server-error.*/)]"
+      }
+    ]
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "code": "INTERNAL_SERVER_ERROR",
+      "message": "PG server error"
+    }
+  }
+}

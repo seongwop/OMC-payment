@@ -1,0 +1,22 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "ANY",
+    "urlPathPattern": "/v1/.*",
+    "headers": {
+      "Authorization": {
+        "doesNotMatch": "Basic dGVzdC1zZWNyZXQta2V5Og=="
+      }
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "code": "UNAUTHORIZED",
+      "message": "Invalid authorization"
+    }
+  }
+}

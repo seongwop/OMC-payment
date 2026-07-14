@@ -1,0 +1,24 @@
+{
+  "priority": 50,
+  "request": {
+    "method": "POST",
+    "urlPathPattern": "/v1/billing/.*",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Basic dGVzdC1zZWNyZXQta2V5Og=="
+      }
+    },
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$.orderId"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\n  \"paymentKey\": \"mock-billing-payment-{{jsonPath request.body '$.orderId'}}\",\n  \"lastTransactionKey\": \"mock-billing-confirm-{{jsonPath request.body '$.orderId'}}\",\n  \"orderId\": \"{{jsonPath request.body '$.orderId'}}\",\n  \"totalAmount\": {{jsonPath request.body '$.amount'}},\n  \"status\": \"DONE\"\n}"
+  }
+}

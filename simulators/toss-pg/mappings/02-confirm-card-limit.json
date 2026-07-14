@@ -1,0 +1,27 @@
+{
+  "priority": 10,
+  "request": {
+    "method": "POST",
+    "url": "/v1/payments/confirm",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Basic dGVzdC1zZWNyZXQta2V5Og=="
+      }
+    },
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$[?(@.paymentKey =~ /.*card-limit.*/)]"
+      }
+    ]
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "code": "EXCEED_MAX_CARD_LIMIT",
+      "message": "Card limit exceeded"
+    }
+  }
+}

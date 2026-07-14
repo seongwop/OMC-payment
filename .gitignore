@@ -1,0 +1,101 @@
+# Gradle
+.gradle/
+build/
+
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# VS Code
+.vscode/
+
+# Mac
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# k6 AES 티켓 캐시 (24h TTL, 로컬 전용)
+k6/ticket_cache.json
+
+# Claude Code (local only)
+CLAUDE.md
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.prod
+application-secret.yml
+application-local.yml
+**/application-prod.yml
+
+# Compiled class files
+*.class
+
+# Package Files
+*.jar
+*.war
+!gradle/wrapper/gradle-wrapper.jar
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Spring Boot devtools restart file
+.spring-boot-devtools.properties
+
+# Personal Test Harness (Local Only)
+/harness/
+# ============================================================
+# 개인 로컬 하네스 (절대 커밋 금지)
+# ============================================================
+CLAUDE.local.md
+harness/
+
+# JMeter load test results
+scripts/load-test/dashboard/
+scripts/load-test/results.jtl
+
+# JMeter binary
+apache-jmeter-5.6.3/
+
+# k6 부하 테스트 생성 데이터 및 결과물 (Git 비공개)
+k6/users.json
+k6/results/

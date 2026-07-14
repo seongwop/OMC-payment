@@ -1,0 +1,3 @@
+com.omc.common.config.GatewaySecurityAutoConfiguration
+com.omc.common.config.CommonSwaggerAutoConfiguration
+com.omc.common.config.TracingAutoConfiguration

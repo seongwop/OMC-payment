@@ -1,0 +1,15 @@
+{
+  "priority": 10,
+  "request": {
+    "method": "POST",
+    "urlPathPattern": "/v1/payments/.*cancel-reset.*/cancel",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Basic dGVzdC1zZWNyZXQta2V5Og=="
+      }
+    }
+  },
+  "response": {
+    "fault": "CONNECTION_RESET_BY_PEER"
+  }
+}

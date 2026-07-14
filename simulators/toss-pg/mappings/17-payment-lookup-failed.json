@@ -1,0 +1,19 @@
+{
+  "priority": 5,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/v1/payments/.*failed-after-timeout.*",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Basic dGVzdC1zZWNyZXQta2V5Og=="
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\n  \"paymentKey\": \"{{request.pathSegments.[2]}}\",\n  \"lastTransactionKey\": \"mock-lookup-failed-{{request.pathSegments.[2]}}\",\n  \"status\": \"ABORTED\",\n  \"totalAmount\": 10000,\n  \"balanceAmount\": 10000\n}"
+  }
+}

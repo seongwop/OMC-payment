@@ -1,0 +1,65 @@
+dependencies {
+    // Swagger
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
+
+    // Messaging
+    implementation 'org.springframework.kafka:spring-kafka'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+
+    // Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Flyway
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // OpenFeign
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
+    // HTTP Client
+    implementation 'org.apache.httpcomponents.client5:httpclient5'
+
+    // Batch
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+
+    // Observability
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // Testcontainers
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:postgresql:1.21.3'
+    testImplementation 'org.testcontainers:junit-jupiter:1.21.3'
+    testImplementation 'org.testcontainers:testcontainers:1.21.3'
+
+    // WireMock
+    testImplementation 'org.wiremock:wiremock-standalone:3.9.1'
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.testcontainers') {
+            details.useVersion '1.21.3'
+        }
+    }
+}
+
+test {
+    useJUnitPlatform {
+        if (System.getenv('CI') != null) {
+            excludeTags 'integration'
+        }
+    }
+    systemProperty "api.version", "1.44"
+    environment "DOCKER_API_VERSION", "1.44"
+    environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+
+    def standardSocket = new File('/var/run/docker.sock')
+    def macDesktopSocket = new File("${System.getProperty('user.home')}/Library/Containers/com.docker.docker/Data/docker-cli.sock")
+    if (!standardSocket.exists() && macDesktopSocket.exists()) {
+        environment "DOCKER_HOST", "unix://${macDesktopSocket.absolutePath}"
+        environment "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", macDesktopSocket.absolutePath
+    }
+}

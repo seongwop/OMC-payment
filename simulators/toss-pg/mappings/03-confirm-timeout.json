@@ -1,0 +1,25 @@
+{
+  "priority": 10,
+  "request": {
+    "method": "POST",
+    "url": "/v1/payments/confirm",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Basic dGVzdC1zZWNyZXQta2V5Og=="
+      }
+    },
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$[?(@.paymentKey =~ /.*timeout.*/)]"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "fixedDelayMilliseconds": 5000,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\n  \"paymentKey\": \"{{jsonPath request.body '$.paymentKey'}}\",\n  \"lastTransactionKey\": \"mock-timeout-{{jsonPath request.body '$.orderId'}}\",\n  \"orderId\": \"{{jsonPath request.body '$.orderId'}}\",\n  \"totalAmount\": {{jsonPath request.body '$.amount'}},\n  \"status\": \"DONE\"\n}"
+  }
+}

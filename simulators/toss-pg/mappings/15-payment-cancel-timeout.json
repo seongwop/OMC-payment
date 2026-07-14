@@ -1,0 +1,20 @@
+{
+  "priority": 10,
+  "request": {
+    "method": "POST",
+    "urlPathPattern": "/v1/payments/.*cancel-timeout.*/cancel",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Basic dGVzdC1zZWNyZXQta2V5Og=="
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "fixedDelayMilliseconds": 5000,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\n  \"paymentKey\": \"{{request.pathSegments.[2]}}\",\n  \"lastTransactionKey\": \"mock-cancel-timeout-{{request.pathSegments.[2]}}\",\n  \"status\": \"CANCELED\"\n}"
+  }
+}

@@ -1,0 +1,163 @@
+server:
+  port: ${SERVER_PORT:8085}
+  tomcat:
+    mbeanregistry:
+      enabled: true
+
+spring:
+  application:
+    name: payment-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:omc}?currentSchema=payment_db
+    username: ${DB_USERNAME:omc}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${PAYMENT_DATASOURCE_MAX_POOL_SIZE:30}
+      minimum-idle: ${PAYMENT_DATASOURCE_MIN_IDLE:10}
+      connection-timeout: ${PAYMENT_DATASOURCE_CONNECTION_TIMEOUT_MS:3000}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: payment_db
+        jdbc:
+          time_zone: Asia/Seoul
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    default-schema: payment_db
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_URI:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:payment-service}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted.packages: ${KAFKA_TRUSTED_PACKAGES:com.omc.*}
+    listener:
+      concurrency: ${KAFKA_LISTENER_CONCURRENCY:3}
+      missing-topics-fatal: false
+      ack-mode: manual_immediate
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+  batch:
+    job:
+      enabled: false
+  cloud:
+    openfeign:
+      client:
+        config:
+          coupon-service:
+            url: ${COUPON_SERVICE_URL:http://localhost:18081}
+
+kafka:
+  topic:
+    default-partitions: ${KAFKA_TOPIC_DEFAULT_PARTITIONS:3}
+    default-replication-factor: ${KAFKA_TOPIC_DEFAULT_REPLICATION_FACTOR:1}
+
+gateway:
+  secret: ${GATEWAY_SECRET:local-secret}
+
+payment:
+  pg:
+    mode: ${PAYMENT_PG_MODE:toss}
+  idempotency:
+    processing-ttl-seconds: ${PAYMENT_IDEMPOTENCY_PROCESSING_TTL_SECONDS:600}
+    success-ttl-seconds: ${PAYMENT_IDEMPOTENCY_SUCCESS_TTL_SECONDS:86400}
+  kafka:
+    consumer:
+      retry:
+        interval-ms: ${PAYMENT_KAFKA_RETRY_INTERVAL_MS:1000}
+        max-attempts: ${PAYMENT_KAFKA_RETRY_MAX_ATTEMPTS:3}
+  outbox:
+    publisher:
+      initial-delay-ms: ${PAYMENT_OUTBOX_INITIAL_DELAY_MS:5000}
+      fixed-delay-ms: ${PAYMENT_OUTBOX_FIXED_DELAY_MS:5000}
+      max-retry-count: ${PAYMENT_OUTBOX_MAX_RETRY_COUNT:3}
+  toss:
+    base-url: ${TOSS_BASE_URL:http://localhost:18080}
+    secret-key: ${TOSS_SECRET_KEY:test-secret-key}
+    connect-timeout-ms: ${TOSS_CONNECT_TIMEOUT_MS:1000}
+    read-timeout-ms: ${TOSS_READ_TIMEOUT_MS:3000}
+    connection-request-timeout-ms: ${TOSS_CONNECTION_REQUEST_TIMEOUT_MS:500}
+    max-connections: ${TOSS_MAX_CONNECTIONS:100}
+    max-connections-per-route: ${TOSS_MAX_CONNECTIONS_PER_ROUTE:100}
+  unknown-recovery:
+    enabled: ${PAYMENT_UNKNOWN_RECOVERY_ENABLED:true}
+    initial-delay-ms: ${PAYMENT_UNKNOWN_RECOVERY_INITIAL_DELAY_MS:60000}
+    fixed-delay-ms: ${PAYMENT_UNKNOWN_RECOVERY_FIXED_DELAY_MS:30000}
+    batch-size: ${PAYMENT_UNKNOWN_RECOVERY_BATCH_SIZE:100}
+    max-retry-count: ${PAYMENT_UNKNOWN_RECOVERY_MAX_RETRY_COUNT:3}
+  expiration:
+    enabled: ${PAYMENT_EXPIRATION_ENABLED:true}
+    initial-delay-ms: ${PAYMENT_EXPIRATION_INITIAL_DELAY_MS:60000}
+    fixed-delay-ms: ${PAYMENT_EXPIRATION_FIXED_DELAY_MS:30000}
+    batch-size: ${PAYMENT_EXPIRATION_BATCH_SIZE:100}
+    ttl-ms: ${PAYMENT_EXPIRATION_TTL_MS:300000}
+  reconciliation:
+    enabled: ${PAYMENT_RECONCILIATION_ENABLED:true}
+    cron: ${PAYMENT_RECONCILIATION_CRON:0 0 4 * * *}
+    zone: ${PAYMENT_RECONCILIATION_ZONE:Asia/Seoul}
+    chunk-size: ${PAYMENT_RECONCILIATION_CHUNK_SIZE:50}
+    page-size: ${PAYMENT_RECONCILIATION_PAGE_SIZE:100}
+    lookback-days: ${PAYMENT_RECONCILIATION_LOOKBACK_DAYS:3}
+
+resilience4j:
+  retry:
+    instances:
+      tossPaymentGateway:
+        max-attempts: 2
+        wait-duration: 100ms
+        retry-exceptions:
+          - com.omc.payment.domain.exception.PaymentGatewayConnectionException
+        ignore-exceptions:
+          - com.omc.payment.domain.exception.PaymentGatewayRequestException
+  bulkhead:
+    instances:
+      tossPaymentGateway:
+        max-concurrent-calls: ${TOSS_BULKHEAD_MAX_CONCURRENT_CALLS:50}
+        max-wait-duration: ${TOSS_BULKHEAD_MAX_WAIT_DURATION:0ms}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.0}
+  health:
+    redis:
+      enabled: false
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,200ms,500ms,1s,2s,5s,10s
+
+sentry:
+  dsn: ${SENTRY_DSN:}
+  traces-sample-rate: 0.0
+  environment: ${SENTRY_ENVIRONMENT:local}

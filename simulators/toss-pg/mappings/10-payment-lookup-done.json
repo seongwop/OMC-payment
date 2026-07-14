@@ -1,0 +1,19 @@
+{
+  "priority": 50,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/v1/payments/.*",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Basic dGVzdC1zZWNyZXQta2V5Og=="
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\n  \"paymentKey\": \"{{request.pathSegments.[2]}}\",\n  \"lastTransactionKey\": \"mock-lookup-{{request.pathSegments.[2]}}\",\n  \"status\": \"DONE\"\n}"
+  }
+}

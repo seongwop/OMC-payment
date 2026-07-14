@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/internal/v1/payments/pre-auth"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{ \"success\": true }"
+  }
+}
