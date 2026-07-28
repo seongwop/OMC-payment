@@ -1,0 +1,23 @@
+server:
+  port: ${SERVER_PORT:8090}
+
+spring:
+  application:
+    name: payment-test-tools
+  kafka:
+    bootstrap-servers: ${KAFKA_URI:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+
+payment-test-tools:
+  publish-timeout: ${TEST_TOOLS_PUBLISH_TIMEOUT:10s}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

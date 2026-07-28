@@ -57,7 +57,7 @@ public class PaymentEventService {
                             event.originalAmount(),
                             event.discountAmount(),
                             event.finalAmount(),
-                            event.orderId().toString() // Mocking을 위한 orderId 결제 식별자
+                            resolveProviderPaymentId(event)
                     );
                 }
         ));
@@ -98,5 +98,11 @@ public class PaymentEventService {
             paymentInboxService.markFailed(eventId);
             throw e;
         }
+    }
+
+    private String resolveProviderPaymentId(OrderCreatedEvent event) {
+        return event.providerPaymentId() == null || event.providerPaymentId().isBlank()
+                ? event.orderId().toString()
+                : event.providerPaymentId();
     }
 }
