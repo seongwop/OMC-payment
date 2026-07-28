@@ -1,0 +1,58 @@
+name: omc-payment-app
+
+services:
+  payment-service:
+    image: ${IMAGE_REGISTRY}/payment-service:${IMAGE_TAG}
+    container_name: omc-payment-service
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError
+      DB_HOST: ${INFRA_INTERNAL_IP}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: ${INFRA_INTERNAL_IP}
+      KAFKA_URI: ${INFRA_INTERNAL_IP}:9092
+      KAFKA_TOPIC_DEFAULT_PARTITIONS: ${KAFKA_TOPIC_DEFAULT_PARTITIONS:-3}
+      KAFKA_LISTENER_CONCURRENCY: ${KAFKA_LISTENER_CONCURRENCY:-3}
+      PAYMENT_PG_MODE: toss
+      TOSS_BASE_URL: http://${INFRA_INTERNAL_IP}:18080
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY}
+      TOSS_READ_TIMEOUT_MS: ${TOSS_READ_TIMEOUT_MS:-3000}
+      TOSS_MAX_CONNECTIONS: ${TOSS_MAX_CONNECTIONS:-170}
+      TOSS_MAX_CONNECTIONS_PER_ROUTE: ${TOSS_MAX_CONNECTIONS_PER_ROUTE:-170}
+      TOSS_BULKHEAD_MAX_CONCURRENT_CALLS: ${TOSS_BULKHEAD_MAX_CONCURRENT_CALLS:-160}
+      PAYMENT_DATASOURCE_MAX_POOL_SIZE: ${PAYMENT_DATASOURCE_MAX_POOL_SIZE:-30}
+      PAYMENT_UNKNOWN_RECOVERY_INITIAL_DELAY_MS: ${PAYMENT_UNKNOWN_RECOVERY_INITIAL_DELAY_MS:-60000}
+      PAYMENT_UNKNOWN_RECOVERY_FIXED_DELAY_MS: ${PAYMENT_UNKNOWN_RECOVERY_FIXED_DELAY_MS:-30000}
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      TRACING_SAMPLING_PROBABILITY: "0.0"
+      SENTRY_DSN: ""
+      SENTRY_ENVIRONMENT: gcp-test
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    mem_limit: 7g
+    networks: [payment-app]
+
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.9.1
+    container_name: omc-app-node-exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    pid: host
+    ports:
+      - "9100:9100"
+    volumes:
+      - /:/host:ro,rslave
+    mem_limit: 128m
+    networks: [payment-app]
+
+networks:
+  payment-app:

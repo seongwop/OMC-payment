@@ -61,9 +61,19 @@ CLAUDE.md
 .env.local
 .env.*.local
 .env.prod
+gha-creds-*.json
 application-secret.yml
 application-local.yml
 **/application-prod.yml
+
+# Terraform local state and generated deployment files
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+infra/gcp/.generated/
 
 # Compiled class files
 *.class

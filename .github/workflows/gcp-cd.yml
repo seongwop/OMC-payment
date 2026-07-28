@@ -1,0 +1,200 @@
+name: GCP CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: gcp-cd
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: omc-payment
+  GCP_REGION: asia-northeast3
+  GCP_ZONE: asia-northeast3-a
+  IMAGE_REGISTRY: asia-northeast3-docker.pkg.dev/omc-payment/omc-payment
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/906454035430/locations/global/workloadIdentityPools/omc-payment-github/providers/github-actions
+  GCP_SERVICE_ACCOUNT: omc-payment-github-actions@omc-payment.iam.gserviceaccount.com
+
+jobs:
+  build-and-push:
+    name: Test, build and push
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.image-tag.outputs.value }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Test and build boot jars
+        run: |
+          chmod +x gradlew
+          ./gradlew clean test :payment-service:bootJar :payment-test-tools:bootJar --no-daemon
+
+      - name: Resolve immutable image tag
+        id: image-tag
+        run: echo "value=${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Artifact Registry
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push payment-service
+        uses: docker/build-push-action@v7
+        with:
+          context: payment-service
+          push: true
+          tags: |
+            ${{ env.IMAGE_REGISTRY }}/payment-service:${{ steps.image-tag.outputs.value }}
+            ${{ env.IMAGE_REGISTRY }}/payment-service:latest
+          cache-from: type=gha,scope=payment-service
+          cache-to: type=gha,mode=max,scope=payment-service
+
+      - name: Build and push payment-test-tools
+        uses: docker/build-push-action@v7
+        with:
+          context: payment-test-tools
+          push: true
+          tags: |
+            ${{ env.IMAGE_REGISTRY }}/payment-test-tools:${{ steps.image-tag.outputs.value }}
+            ${{ env.IMAGE_REGISTRY }}/payment-test-tools:latest
+          cache-from: type=gha,scope=payment-test-tools
+          cache-to: type=gha,mode=max,scope=payment-test-tools
+
+  deploy-infra:
+    name: Deploy infra
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: build-and-push
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Prepare deployment scripts and SSH
+        run: |
+          chmod +x scripts/gcp/deploy-ci.sh
+          chmod +x deploy/gcp/scripts/*.sh
+          mkdir -p "${HOME}/.ssh"
+          if [ ! -f "${HOME}/.ssh/google_compute_engine" ]; then
+            ssh-keygen -t rsa -b 3072 -N "" -C "github-actions@${HOSTNAME}" -f "${HOME}/.ssh/google_compute_engine" -q
+          fi
+          chmod 600 "${HOME}/.ssh/google_compute_engine"
+          chmod 644 "${HOME}/.ssh/google_compute_engine.pub"
+
+      - name: Deploy and verify infra
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          DEPLOY_ROLES: infra
+        run: scripts/gcp/deploy-ci.sh
+
+  deploy-app:
+    name: Deploy payment service
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs:
+      - build-and-push
+      - deploy-infra
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Prepare deployment scripts and SSH
+        run: |
+          chmod +x scripts/gcp/deploy-ci.sh
+          chmod +x deploy/gcp/scripts/*.sh
+          mkdir -p "${HOME}/.ssh"
+          ssh-keygen -t rsa -b 3072 -N "" -C "github-actions@${HOSTNAME}" -f "${HOME}/.ssh/google_compute_engine" -q
+          chmod 600 "${HOME}/.ssh/google_compute_engine"
+          chmod 644 "${HOME}/.ssh/google_compute_engine.pub"
+
+      - name: Deploy and verify payment service
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          DEPLOY_ROLES: app
+        run: scripts/gcp/deploy-ci.sh
+
+  deploy-test:
+    name: Deploy test and monitoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs:
+      - build-and-push
+      - deploy-app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Prepare deployment scripts and SSH
+        run: |
+          chmod +x scripts/gcp/deploy-ci.sh
+          chmod +x deploy/gcp/scripts/*.sh
+          mkdir -p "${HOME}/.ssh"
+          ssh-keygen -t rsa -b 3072 -N "" -C "github-actions@${HOSTNAME}" -f "${HOME}/.ssh/google_compute_engine" -q
+          chmod 600 "${HOME}/.ssh/google_compute_engine"
+          chmod 644 "${HOME}/.ssh/google_compute_engine.pub"
+
+      - name: Deploy and verify test environment
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          DEPLOY_ROLES: test
+        run: scripts/gcp/deploy-ci.sh
