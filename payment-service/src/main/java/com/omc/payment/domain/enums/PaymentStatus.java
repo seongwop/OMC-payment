@@ -17,7 +17,10 @@ public enum PaymentStatus {
                     || next == CANCELED
                     || next == CONFIRM_UNKNOWN
                     || next == CANCEL_UNKNOWN;
-            case CONFIRMING -> next == PAID || next == FAILED || next == CONFIRM_UNKNOWN;
+            case CONFIRMING -> next == READY
+                    || next == PAID
+                    || next == FAILED
+                    || next == CONFIRM_UNKNOWN;
             case PAID -> next == CANCELED || next == CANCEL_UNKNOWN;
             case CONFIRM_UNKNOWN -> next == PAID
                     || next == FAILED
