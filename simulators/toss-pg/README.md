@@ -93,6 +93,7 @@ TOSS_BASE_URL=http://toss-wiremock:8080
 | `mock-not-approved-timeout-payment-key` | 5초 지연 후 실패 | 404 NOT_FOUND | PG 승인 자체가 없었던 timeout |
 | `mock-cancel-timeout-payment-key` | 승인 성공 | 취소 5초 지연 | 취소 요청 timeout |
 | `mock-cancel-server-error-payment-key` | 승인 성공 | 취소 500 | 취소 요청 PG 오류 |
+| `mock-cancel-reset-recovered-canceled-payment-key` | 승인 성공 | 취소 connection reset 후 조회 CANCELED | `CANCEL_UNKNOWN` 최종 상태 수렴 |
 
 ## JMeter 장애 비율 예시
 
