@@ -28,8 +28,8 @@ public class TossPaymentsConfig {
             @Value("${payment.toss.connect-timeout-ms:1000}") long connectTimeoutMs,
             @Value("${payment.toss.read-timeout-ms:3000}") long readTimeoutMs,
             @Value("${payment.toss.connection-request-timeout-ms:500}") long connectionRequestTimeoutMs,
-            @Value("${payment.toss.max-connections:100}") int maxConnections,
-            @Value("${payment.toss.max-connections-per-route:100}") int maxConnectionsPerRoute
+            @Value("${payment.toss.max-connections:170}") int maxConnections,
+            @Value("${payment.toss.max-connections-per-route:170}") int maxConnectionsPerRoute
     ) {
 
         // Toss HTTP connection pool 설정

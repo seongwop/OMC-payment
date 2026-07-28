@@ -76,7 +76,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     // Toss 결제 조회
     @Override
     @Bulkhead(name = "tossPaymentGateway", fallbackMethod = "getPaymentFallback")
-    @Retry(name = "tossPaymentGateway")
+    @Retry(name = "tossPaymentLookup")
     public PaymentGatewayResult.Payment getPayment(PaymentGatewayCommand.GetPayment command) {
         PaymentResponse response = get(
                 "/v1/payments/{paymentKey}",
