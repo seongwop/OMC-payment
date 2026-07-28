@@ -119,6 +119,17 @@ public class PaymentTransactionService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markReadyForRetry(UUID paymentId) {
+        Payment payment = getPayment(paymentId);
+        if (payment.getPaymentStatus() != PaymentStatus.CONFIRMING) {
+            return;
+        }
+        PaymentStatus previousStatus = payment.getPaymentStatus();
+        payment.markReadyForRetry();
+        saveStatusHistory(payment, previousStatus, "PG 호출 전 동시 요청 제한으로 승인 보류");
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Payment approveAndSaveOutbox(UUID paymentId, String providerPaymentId) {
         Payment payment = getPayment(paymentId);
         // 종료 상태 시 Outbox 중복 저장 방지

@@ -185,6 +185,11 @@ public class Payment extends BaseEntity {
         transitTo(PaymentStatus.CONFIRMING);
     }
 
+    // PG 호출 전에 동시 요청 제한으로 차단된 결제를 재시도 가능한 상태로 복구
+    public void markReadyForRetry() {
+        transitTo(PaymentStatus.READY);
+    }
+
     // PG 승인 성공 이벤트 반영
     public void approve(String providerPaymentId) {
         if (providerPaymentId == null || providerPaymentId.isBlank()) {

@@ -13,6 +13,7 @@ import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.enums.Provider;
 import com.omc.payment.domain.enums.SalesType;
 import com.omc.payment.domain.exception.PaymentErrorCode;
+import com.omc.payment.domain.exception.PaymentGatewayCapacityExceededException;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.exception.RetryablePaymentException;
@@ -287,6 +288,37 @@ class PaymentCoreServiceTest {
             verify(paymentOutboxService, never()).savePaymentFailed(any(Payment.class));
             verify(paymentOutboxService, never()).savePaymentCompleted(any(Payment.class));
         }
+
+        @Test
+        @DisplayName("PG 호출 전 동시 요청 제한에 걸리면 READY로 복구하고 재시도 예외를 던진다")
+        void confirmPayment_gatewayCapacityExceededReturnsToReady() {
+            given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
+            given(paymentGatewayPort.confirmPayment(any(PaymentGatewayCommand.Confirm.class)))
+                    .willThrow(new PaymentGatewayCapacityExceededException(
+                            "게이트웨이 동시 요청 한도를 초과했습니다.",
+                            new RuntimeException("Bulkhead 거절")
+                    ));
+
+            assertThatThrownBy(() -> paymentCoreService.confirmPayment(
+                    ORDER_ID,
+                    DROP_ID,
+                    PRODUCT_ID,
+                    null,
+                    USER_ID,
+                    10000L,
+                    0L,
+                    10000L,
+                    "결제 승인 아이디"
+            ))
+                    .isInstanceOf(RetryablePaymentException.class)
+                    .satisfies(exception -> assertThat(((RetryablePaymentException) exception).getErrorCode())
+                            .isEqualTo(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED));
+
+            assertThat(savedPayments.values()).singleElement()
+                    .satisfies(payment -> assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.READY));
+            verify(paymentOutboxService, never()).savePaymentFailed(any(Payment.class));
+            verify(paymentOutboxService, never()).savePaymentCompleted(any(Payment.class));
+        }
     }
 
     @Nested
@@ -334,6 +366,39 @@ class PaymentCoreServiceTest {
             assertThat(couponRequestCaptor.getValue().orderId()).isEqualTo(ORDER_ID);
             assertThat(couponRequestCaptor.getValue().userId()).isEqualTo(USER_ID);
             verify(paymentOutboxService).savePaymentCompleted(payment);
+        }
+
+        @Test
+        @DisplayName("빌링 PG 호출 전 동시 요청 제한에 걸리면 READY로 복구하고 재시도 예외를 던진다")
+        void confirmBillingPayment_gatewayCapacityExceededReturnsToReady() {
+            given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
+            given(paymentGatewayPort.confirmBillingPayment(any(PaymentGatewayCommand.ConfirmBilling.class)))
+                    .willThrow(new PaymentGatewayCapacityExceededException(
+                            "게이트웨이 동시 요청 한도를 초과했습니다.",
+                            new RuntimeException("Bulkhead 거절")
+                    ));
+
+            assertThatThrownBy(() -> paymentCoreService.confirmBillingPayment(
+                    ORDER_ID,
+                    ENTRY_ID,
+                    RAFFLE_ID,
+                    PRODUCT_ID,
+                    null,
+                    USER_ID,
+                    "빌링키 아이디",
+                    null,
+                    30000L,
+                    0L,
+                    30000L
+            ))
+                    .isInstanceOf(RetryablePaymentException.class)
+                    .satisfies(exception -> assertThat(((RetryablePaymentException) exception).getErrorCode())
+                            .isEqualTo(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED));
+
+            assertThat(savedPayments.values()).singleElement()
+                    .satisfies(payment -> assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.READY));
+            verify(paymentOutboxService, never()).savePaymentFailed(any(Payment.class));
+            verify(paymentOutboxService, never()).savePaymentCompleted(any(Payment.class));
         }
     }
 

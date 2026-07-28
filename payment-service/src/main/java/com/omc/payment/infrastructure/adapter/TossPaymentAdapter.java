@@ -1,6 +1,7 @@
 package com.omc.payment.infrastructure.adapter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.payment.domain.exception.PaymentGatewayCapacityExceededException;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
@@ -8,6 +9,7 @@ import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
 import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentErrorCode;
+import io.github.resilience4j.bulkhead.BulkheadFullException;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +32,6 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     // Toss 일반 결제
     @Override
     @Bulkhead(name = "tossPaymentGateway", fallbackMethod = "confirmPaymentFallback")
-    @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Confirm confirmPayment(PaymentGatewayCommand.Confirm command) {
         PaymentResponse response = post(
                 "/v1/payments/confirm",
@@ -56,7 +57,6 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     // Toss 빌링키 자동 결제
     @Override
     @Bulkhead(name = "tossPaymentGateway", fallbackMethod = "confirmBillingPaymentFallback")
-    @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Confirm confirmBillingPayment(PaymentGatewayCommand.ConfirmBilling command) {
         PaymentResponse response = post(
                 "/v1/billing/{billingKey}",
@@ -96,7 +96,6 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     // Toss 결제 취소
     @Override
     @Bulkhead(name = "tossPaymentGateway", fallbackMethod = "cancelPaymentFallback")
-    @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Cancel cancelPayment(PaymentGatewayCommand.Cancel command) {
         PaymentResponse response = post(
                 "/v1/payments/{paymentKey}/cancel",
@@ -127,12 +126,18 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
         };
     }
 
-    private PaymentGatewayResult.Confirm confirmPaymentFallback(PaymentGatewayCommand.Confirm command, Throwable e) {
-        throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
+    private PaymentGatewayResult.Confirm confirmPaymentFallback(
+            PaymentGatewayCommand.Confirm command,
+            BulkheadFullException e
+    ) {
+        throw new PaymentGatewayCapacityExceededException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
     }
 
-    private PaymentGatewayResult.Confirm confirmBillingPaymentFallback(PaymentGatewayCommand.ConfirmBilling command, Throwable e) {
-        throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
+    private PaymentGatewayResult.Confirm confirmBillingPaymentFallback(
+            PaymentGatewayCommand.ConfirmBilling command,
+            BulkheadFullException e
+    ) {
+        throw new PaymentGatewayCapacityExceededException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
     }
 
     private PaymentGatewayResult.Payment getPaymentFallback(PaymentGatewayCommand.GetPayment command, Throwable e) {

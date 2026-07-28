@@ -12,6 +12,7 @@ import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentCompensatableException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
+import com.omc.payment.domain.exception.PaymentGatewayCapacityExceededException;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.exception.RetryablePaymentException;
@@ -291,6 +292,12 @@ public class PaymentCoreService {
                 throw new PaymentGatewayConnectionException("PG 결제 승인 응답에 결제 ID가 없습니다.");
             }
             return paymentTransactionService.approveAndSaveOutbox(payment.getPaymentId(), result.providerPaymentId());
+        } catch (PaymentGatewayCapacityExceededException e) {
+            paymentTransactionService.markReadyForRetry(payment.getPaymentId());
+            throw new RetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED,
+                    "PG 호출 용량이 확보되지 않아 결제 승인을 재시도합니다."
+            );
         } catch (PaymentGatewayRequestException e) {
             /* FAILED 처리 */
             return paymentTransactionService.failAndSaveOutbox(payment.getPaymentId(), e.getProviderErrorCode(), e.getMessage());
@@ -327,6 +334,12 @@ public class PaymentCoreService {
                 throw new PaymentGatewayConnectionException("PG 결제 승인 응답에 결제 ID가 없습니다.");
             }
             return paymentTransactionService.approveAndSaveOutbox(payment.getPaymentId(), result.providerPaymentId());
+        } catch (PaymentGatewayCapacityExceededException e) {
+            paymentTransactionService.markReadyForRetry(payment.getPaymentId());
+            throw new RetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED,
+                    "PG 호출 용량이 확보되지 않아 결제 승인을 재시도합니다."
+            );
         } catch (PaymentGatewayRequestException e) {
             return paymentTransactionService.failAndSaveOutbox(payment.getPaymentId(), e.getProviderErrorCode(), e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
