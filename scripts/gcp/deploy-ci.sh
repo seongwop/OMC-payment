@@ -97,6 +97,11 @@ create_role_archive() {
       ;;
   esac
 
+  find "${role_dir}" -type d -exec chmod 755 {} +
+  find "${role_dir}" -type f -exec chmod 644 {} +
+  find "${role_dir}/scripts" -maxdepth 1 -type f -name "*.sh" -exec chmod 755 {} +
+  chmod 600 "${role_dir}/.env.gcp"
+
   tar -czf "${archive}" -C "${role_dir}" .
   printf '%s' "${archive}"
 }
@@ -116,7 +121,8 @@ deploy_role() {
 sudo mkdir -p '${REMOTE_DIR}'
 sudo tar -xzf '${remote_archive}' -C '${REMOTE_DIR}' --no-same-owner
 sudo rm -f '${remote_archive}'
-sudo chmod +x '${REMOTE_DIR}'/scripts/*.sh
+sudo chmod 755 '${REMOTE_DIR}' '${REMOTE_DIR}/scripts'
+sudo find '${REMOTE_DIR}/scripts' -maxdepth 1 -type f -name '*.sh' -exec chmod 755 {} +
 sudo bash '${REMOTE_DIR}/scripts/deploy-role.sh' '${role}' '${REGISTRY_HOST}'
 sudo timeout 610 bash '${REMOTE_DIR}/scripts/wait-role-health.sh' '${role}'"
 }
