@@ -1,0 +1,95 @@
+name: omc-payment-test
+
+services:
+  payment-test-tools:
+    image: ${IMAGE_REGISTRY}/payment-test-tools:${IMAGE_TAG}
+    container_name: omc-payment-test-tools
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Seoul
+      DB_HOST: ${INFRA_INTERNAL_IP}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_URI: ${INFRA_INTERNAL_IP}:9092
+      TEST_TOOLS_KAFKA_GROUP_ID: payment-test-tools-verifier
+      TEST_TOOLS_VERIFIER_ENABLED: ${TEST_TOOLS_VERIFIER_ENABLED:-false}
+      TEST_TOOLS_VERIFICATION_TIMEOUT: ${TEST_TOOLS_VERIFICATION_TIMEOUT:-15s}
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    mem_limit: 1536m
+    networks: [payment-test]
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: omc-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "19090:9090"
+    mem_limit: 2g
+    networks: [payment-test]
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: omc-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "13000:3000"
+    depends_on:
+      - prometheus
+    mem_limit: 1g
+    networks: [payment-test]
+
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.9.1
+    container_name: omc-test-node-exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    pid: host
+    ports:
+      - "9100:9100"
+    volumes:
+      - /:/host:ro,rslave
+    mem_limit: 128m
+    networks: [payment-test]
+
+  k6:
+    image: grafana/k6:1.0.0
+    profiles: [load]
+    environment:
+      BASE_URL: http://${APP_INTERNAL_IP}:8085
+      K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
+      K6_PROMETHEUS_RW_TREND_STATS: p(90),p(95),p(99),min,max,avg
+    volumes:
+      - ./load-test/k6:/scripts:ro
+      - ./load-test/results:/results
+    mem_limit: 2g
+    networks: [payment-test]
+
+networks:
+  payment-test:
+
+volumes:
+  prometheus_data:
+  grafana_data:

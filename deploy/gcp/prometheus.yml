@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: payment-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["10.20.0.10:8085"]
+        labels:
+          role: app
+
+  - job_name: node
+    static_configs:
+      - targets: ["10.20.0.10:9100"]
+        labels:
+          role: app
+      - targets: ["10.20.0.20:9100"]
+        labels:
+          role: infra
+      - targets: ["10.20.0.30:9100"]
+        labels:
+          role: test

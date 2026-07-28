@@ -1,0 +1,38 @@
+substitutions:
+  _REGION: asia-northeast3
+  _REPOSITORY: omc-payment
+  _IMAGE_TAG: manual
+
+steps:
+  - id: build-spring-boot-jars
+    name: eclipse-temurin:21-jdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        sed -i 's/\r$//' ./gradlew
+        chmod +x ./gradlew
+        ./gradlew --no-daemon test :payment-service:bootJar :payment-test-tools:bootJar
+
+  - id: build-payment-service-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/payment-service:${_IMAGE_TAG}
+      - payment-service
+
+  - id: build-payment-test-tools-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/payment-test-tools:${_IMAGE_TAG}
+      - payment-test-tools
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/payment-service:${_IMAGE_TAG}
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/payment-test-tools:${_IMAGE_TAG}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

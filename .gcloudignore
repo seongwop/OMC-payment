@@ -1,0 +1,14 @@
+.gcloudignore
+.git
+.gitignore
+gha-creds-*.json
+.gradle
+.idea
+**/build
+**/.terraform
+**/.terraform/**
+*.log
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
