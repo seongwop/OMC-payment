@@ -96,3 +96,10 @@ project(':payment-service') {
         testImplementation project(':arch-rules')
     }
 }
+
+project(':payment-test-tools') {
+    apply plugin: 'org.springframework.boot'
+
+    bootJar.enabled = true
+    jar.enabled = false
+}

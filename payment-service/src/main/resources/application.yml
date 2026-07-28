@@ -98,8 +98,8 @@ payment:
     connect-timeout-ms: ${TOSS_CONNECT_TIMEOUT_MS:1000}
     read-timeout-ms: ${TOSS_READ_TIMEOUT_MS:3000}
     connection-request-timeout-ms: ${TOSS_CONNECTION_REQUEST_TIMEOUT_MS:500}
-    max-connections: ${TOSS_MAX_CONNECTIONS:100}
-    max-connections-per-route: ${TOSS_MAX_CONNECTIONS_PER_ROUTE:100}
+    max-connections: ${TOSS_MAX_CONNECTIONS:170}
+    max-connections-per-route: ${TOSS_MAX_CONNECTIONS_PER_ROUTE:170}
   unknown-recovery:
     enabled: ${PAYMENT_UNKNOWN_RECOVERY_ENABLED:true}
     initial-delay-ms: ${PAYMENT_UNKNOWN_RECOVERY_INITIAL_DELAY_MS:60000}
@@ -123,7 +123,7 @@ payment:
 resilience4j:
   retry:
     instances:
-      tossPaymentGateway:
+      tossPaymentLookup:
         max-attempts: 2
         wait-duration: 100ms
         retry-exceptions:
@@ -133,7 +133,7 @@ resilience4j:
   bulkhead:
     instances:
       tossPaymentGateway:
-        max-concurrent-calls: ${TOSS_BULKHEAD_MAX_CONCURRENT_CALLS:50}
+        max-concurrent-calls: ${TOSS_BULKHEAD_MAX_CONCURRENT_CALLS:160}
         max-wait-duration: ${TOSS_BULKHEAD_MAX_WAIT_DURATION:0ms}
 
 management:

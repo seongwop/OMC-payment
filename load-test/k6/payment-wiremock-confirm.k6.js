@@ -1,9 +1,10 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Counter, Rate } from 'k6/metrics';
+import { Counter, Rate, Trend } from 'k6/metrics';
 
 // k6 부하 테스트 설정
 export const options = {
+    summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
     scenarios: {
         // 시나리오: Toss WireMock 장애 응답을 섞은 결제 승인 부하 테스트
         confirm_load: {
@@ -11,13 +12,13 @@ export const options = {
             rate: Number(__ENV.RATE || 100),
             timeUnit: __ENV.TIME_UNIT || '1s',
             duration: __ENV.DURATION || '90s',
-            preAllocatedVUs: Number(__ENV.PRE_ALLOCATED_VUS || __ENV.VUS || 80),
+            preAllocatedVUs: Number(__ENV.PRE_ALLOCATED_VUS || __ENV.VUS || 150),
             maxVUs: Number(__ENV.MAX_VUS || 200),
         },
     },
     thresholds: {
         // 성공 기준 설정
-        'http_req_duration{payment_scenario:success}': ['p(95)<1000'], // 정상 승인 요청의 95%가 1초 이내에 완료되어야 함
+        payment_confirm_success_201_duration: ['p(95)<1000', 'p(99)<1500'], // 201로 완료된 정상 승인 요청만 확인
         'http_req_duration{payment_scenario:card_limit}': ['p(95)<1000'], // 명확한 PG 실패 요청의 95%가 1초 이내에 완료되어야 함
         payment_confirm_accepted: ['rate>0.70'], // 70% 이상은 서비스가 정책적으로 처리한 응답이어야 함
     },
@@ -41,6 +42,13 @@ const confirmBusinessFailure = new Counter('payment_confirm_business_failure'); 
 const confirmUnknownCandidate = new Counter('payment_confirm_unknown_candidate'); // UNKNOWN 후속 처리 후보 수
 const confirmUnexpected = new Counter('payment_confirm_unexpected'); // 예상 밖 응답 수
 const confirmAccepted = new Rate('payment_confirm_accepted'); // 정책적으로 처리된 응답 비율
+const confirmSuccessDuration = new Trend('payment_confirm_success_201_duration', true); // 201 정상 승인 응답 시간
+const bulkheadRejected = new Counter('payment_confirm_bulkhead_rejected'); // Bulkhead 거절 응답 수
+const normalRequestRejected = new Counter('payment_confirm_normal_rejected'); // 정상 승인 시나리오의 Bulkhead 거절 수
+const timeoutRequestRejected = new Counter('payment_confirm_timeout_rejected'); // timeout 시나리오의 Bulkhead 거절 수
+const bulkheadRejectedRate = new Rate('payment_confirm_bulkhead_rejected_rate'); // 전체 요청의 Bulkhead 거절 비율
+const normalRequestRejectedRate = new Rate('payment_confirm_normal_rejected_rate'); // 정상 승인 시나리오의 Bulkhead 거절 비율
+const timeoutRequestRejectedRate = new Rate('payment_confirm_timeout_rejected_rate'); // timeout 시나리오의 Bulkhead 거절 비율
 
 export default function () {
     // 1. 매 요청마다 WireMock 응답 시나리오를 선택
@@ -99,7 +107,7 @@ export default function () {
 
     // 7. 시나리오별 메트릭 기록
     confirmAccepted.add(accepted);
-    recordScenarioMetric(scenario.name, res.status);
+    recordScenarioMetric(scenario.name, res);
 
     // 8. 예상 밖 응답은 원인 확인을 위해 body 일부 출력
     if (!accepted) {
@@ -141,21 +149,67 @@ function choosePaymentScenario() {
     return { name: 'approved_but_timeout', paymentKeyPrefix: 'mock-approved-but-timeout' };
 }
 
-function recordScenarioMetric(name, status) {
+function recordScenarioMetric(name, response) {
+    const status = response.status;
+    const timeoutScenario = isTimeoutScenario(name);
+    const rejected = status === 503;
+
+    // 비교 실험에서 503은 Bulkhead가 PG 호출을 수용하지 못한 응답으로 사용
+    bulkheadRejectedRate.add(rejected);
+    if (rejected) {
+        bulkheadRejected.add(1);
+    }
+
+    if (name === 'success') {
+        normalRequestRejectedRate.add(rejected);
+        if (rejected) {
+            normalRequestRejected.add(1);
+        }
+    }
+
+    if (timeoutScenario) {
+        timeoutRequestRejectedRate.add(rejected);
+        if (rejected) {
+            timeoutRequestRejected.add(1);
+        }
+    }
+
     // 성공 시나리오는 DB에서 PAID와 payment.completed Outbox로 최종 확인
     if (status === 201 && name === 'success') {
         confirmSuccess.add(1);
+        confirmSuccessDuration.add(response.timings.duration);
         return;
     }
 
     // 명확한 PG 실패는 DB에서 FAILED와 payment.failed Outbox로 최종 확인
     if (name === 'card_limit') {
-        confirmBusinessFailure.add(1);
+        if (status === 201) {
+            confirmBusinessFailure.add(1);
+        } else {
+            confirmUnexpected.add(1);
+        }
         return;
     }
 
     // timeout/reset/lookup 장애 계열은 DB에서 UNKNOWN 후속 처리 수렴 여부 확인
-    if (
+    if (timeoutScenario) {
+        // Bulkhead 거절은 PG 호출 전 READY로 복귀하므로 UNKNOWN 후보에서 제외
+        if (rejected) {
+            return;
+        }
+        if (status === 201) {
+            confirmUnknownCandidate.add(1);
+        } else {
+            confirmUnexpected.add(1);
+        }
+        return;
+    }
+
+    confirmUnexpected.add(1);
+}
+
+function isTimeoutScenario(name) {
+    return (
         name === 'network_error' ||
         name === 'approved_but_timeout' ||
         name === 'failed_after_timeout' ||
@@ -165,12 +219,7 @@ function recordScenarioMetric(name, status) {
         name === 'lookup_rate_limit' ||
         name === 'lookup_server_error' ||
         name === 'canceled_after_timeout'
-    ) {
-        confirmUnknownCandidate.add(1);
-        return;
-    }
-
-    confirmUnexpected.add(1);
+    );
 }
 
 function safeBody(res) {

@@ -4,6 +4,8 @@ import com.omc.payment.application.event.dto.inbound.OrderCreatedEvent;
 import com.omc.payment.application.event.dto.inbound.RefundRequestedEvent;
 import com.omc.payment.application.event.dto.inbound.StockFailedEvent;
 import com.omc.payment.domain.enums.CancellationCode;
+import com.omc.payment.domain.exception.PaymentErrorCode;
+import com.omc.payment.domain.exception.RetryablePaymentException;
 import com.omc.payment.infrastructure.config.KafkaTopics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -142,6 +145,55 @@ class PaymentEventServiceTest {
             );
             assertThat(providerPaymentIdCaptor.getValue()).isEqualTo(ORDER_ID.toString());
         }
+
+        @Test
+        @DisplayName("PG 결제 식별자가 있으면 orderId 대신 해당 값을 사용한다")
+        void handleOrderCreated_usesProvidedProviderPaymentId() {
+            String providerPaymentId = "mock-approved-but-timeout-" + ORDER_ID;
+            OrderCreatedEvent event = dropOrderCreatedEvent(providerPaymentId);
+            when(paymentInboxService.isAlreadyProcessed(EVENT_ID, KafkaTopics.ORDER_CREATED)).thenReturn(false);
+
+            paymentEventService.handleOrderCreated(event);
+
+            verify(paymentCoreService).confirmPayment(
+                    org.mockito.ArgumentMatchers.eq(ORDER_ID),
+                    org.mockito.ArgumentMatchers.eq(DROP_ID),
+                    org.mockito.ArgumentMatchers.eq(PRODUCT_ID),
+                    org.mockito.ArgumentMatchers.eq(COUPON_ID),
+                    org.mockito.ArgumentMatchers.eq(USER_ID),
+                    org.mockito.ArgumentMatchers.eq(10000L),
+                    org.mockito.ArgumentMatchers.eq(1000L),
+                    org.mockito.ArgumentMatchers.eq(9000L),
+                    org.mockito.ArgumentMatchers.eq(providerPaymentId)
+            );
+        }
+
+        @Test
+        @DisplayName("결제 승인이 재시도 예외로 실패하면 Inbox를 실패 처리하고 예외를 다시 던진다")
+        void handleOrderCreated_retryableFailureMarksInboxFailed() {
+            OrderCreatedEvent event = dropOrderCreatedEvent();
+            when(paymentInboxService.isAlreadyProcessed(EVENT_ID, KafkaTopics.ORDER_CREATED)).thenReturn(false);
+            when(paymentCoreService.confirmPayment(
+                    org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.anyLong(),
+                    org.mockito.ArgumentMatchers.anyLong(),
+                    org.mockito.ArgumentMatchers.anyLong(),
+                    org.mockito.ArgumentMatchers.anyString()
+            )).thenThrow(new RetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED,
+                    "PG 동시 요청 한도를 초과했습니다."
+            ));
+
+            assertThatThrownBy(() -> paymentEventService.handleOrderCreated(event))
+                    .isInstanceOf(RetryablePaymentException.class);
+
+            verify(paymentInboxService).markFailed(EVENT_ID);
+            verify(paymentInboxService, never()).markProcessed(EVENT_ID);
+        }
     }
 
     @Nested
@@ -191,6 +243,10 @@ class PaymentEventServiceTest {
     }
 
     private OrderCreatedEvent dropOrderCreatedEvent() {
+        return dropOrderCreatedEvent(null);
+    }
+
+    private OrderCreatedEvent dropOrderCreatedEvent(String providerPaymentId) {
         return new OrderCreatedEvent(
                 EVENT_ID,
                 ORDER_ID,
@@ -204,7 +260,8 @@ class PaymentEventServiceTest {
                 1000L,
                 9000L,
                 COUPON_ID,
-                null
+                null,
+                providerPaymentId
         );
     }
 
