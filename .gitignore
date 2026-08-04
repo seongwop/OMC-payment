@@ -50,9 +50,6 @@ Desktop.ini
 *.log
 logs/
 
-# k6 AES 티켓 캐시 (24h TTL, 로컬 전용)
-k6/ticket_cache.json
-
 # Claude Code (local only)
 CLAUDE.md
 
@@ -91,21 +88,10 @@ infra/gcp/.generated/
 # Spring Boot devtools restart file
 .spring-boot-devtools.properties
 
-# Personal Test Harness (Local Only)
-/harness/
-# ============================================================
-# 개인 로컬 하네스 (절대 커밋 금지)
-# ============================================================
+# Local development context
 CLAUDE.local.md
-harness/
+/harness/
 
-# JMeter load test results
-scripts/load-test/dashboard/
-scripts/load-test/results.jtl
-
-# JMeter binary
-apache-jmeter-5.6.3/
-
-# k6 부하 테스트 생성 데이터 및 결과물 (Git 비공개)
-k6/users.json
-k6/results/
+# Performance raw artifacts and exploratory reports (local only)
+/load-test/results/
+/local-artifacts/

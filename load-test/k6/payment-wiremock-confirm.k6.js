@@ -11,7 +11,7 @@ export const options = {
             executor: 'constant-arrival-rate',
             rate: Number(__ENV.RATE || 100),
             timeUnit: __ENV.TIME_UNIT || '1s',
-            duration: __ENV.DURATION || '90s',
+            duration: __ENV.DURATION || '60s',
             preAllocatedVUs: Number(__ENV.PRE_ALLOCATED_VUS || __ENV.VUS || 150),
             maxVUs: Number(__ENV.MAX_VUS || 200),
         },

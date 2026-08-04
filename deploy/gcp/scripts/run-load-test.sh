@@ -5,7 +5,7 @@ cd /opt/omc-payment
 mkdir -p load-test/results
 
 RATE="${RATE:-300}"
-DURATION="${DURATION:-90s}"
+DURATION="${DURATION:-60s}"
 TIMEOUT_WEIGHT="${TIMEOUT_WEIGHT:-20}"
 SUCCESS_WEIGHT="$((100 - TIMEOUT_WEIGHT))"
 RESULT_FILE="/results/payment-$(date +%Y%m%d-%H%M%S).json"
