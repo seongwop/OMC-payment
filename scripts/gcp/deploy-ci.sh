@@ -9,7 +9,7 @@ REMOTE_DIR="/opt/omc-payment"
 REGISTRY_HOST="${REGION}-docker.pkg.dev"
 REGISTRY="${REGISTRY_HOST}/${PROJECT_ID}/omc-payment"
 
-APP_VM="omc-payment-app-vm"
+APP_VMS=("omc-payment-app-vm" "omc-payment-app-2-vm")
 INFRA_VM="omc-payment-infra-vm"
 TEST_VM="omc-payment-test-vm"
 DEPLOY_ROLES="${DEPLOY_ROLES:-infra app test}"
@@ -149,6 +149,11 @@ grafana_password="$(
     --secret omc-payment-grafana-admin-password \
     --project "${PROJECT_ID}"
 )"
+gateway_secret="$(
+  gcloud secrets versions access latest \
+    --secret omc-payment-gateway-secret \
+    --project "${PROJECT_ID}"
+)"
 
 env_file="${temp_root}/runtime.env"
 cat >"${env_file}" <<EOF
@@ -161,9 +166,9 @@ DB_USERNAME=omc
 DB_PASSWORD=${db_password}
 GRAFANA_ADMIN_PASSWORD=${grafana_password}
 TOSS_SECRET_KEY=test-secret-key
-GATEWAY_SECRET=local-secret
-KAFKA_TOPIC_DEFAULT_PARTITIONS=3
-KAFKA_LISTENER_CONCURRENCY=3
+GATEWAY_SECRET=${gateway_secret}
+KAFKA_TOPIC_DEFAULT_PARTITIONS=${KAFKA_TOPIC_DEFAULT_PARTITIONS:-16}
+KAFKA_LISTENER_CONCURRENCY=${KAFKA_LISTENER_CONCURRENCY:-8}
 TOSS_READ_TIMEOUT_MS=3000
 TOSS_MAX_CONNECTIONS=170
 TOSS_MAX_CONNECTIONS_PER_ROUTE=170
@@ -184,8 +189,10 @@ for role in ${DEPLOY_ROLES}; do
       vm_names+=("${INFRA_VM}")
       ;;
     app)
-      roles+=("${role}")
-      vm_names+=("${APP_VM}")
+      for app_vm in "${APP_VMS[@]}"; do
+        roles+=("${role}")
+        vm_names+=("${app_vm}")
+      done
       ;;
     test)
       roles+=("${role}")
@@ -228,13 +235,9 @@ for vm_name in "${vm_names[@]}"; do
   wait_for_docker "${vm_name}"
 done
 
-for role in "${roles[@]}"; do
-  case "${role}" in
-    infra) vm_name="${INFRA_VM}" ;;
-    app) vm_name="${APP_VM}" ;;
-    test) vm_name="${TEST_VM}" ;;
-  esac
-
+for index in "${!roles[@]}"; do
+  role="${roles[${index}]}"
+  vm_name="${vm_names[${index}]}"
   archive="$(create_role_archive "${role}" "${temp_root}" "${env_file}")"
   deploy_role "${role}" "${vm_name}" "${archive}"
 done

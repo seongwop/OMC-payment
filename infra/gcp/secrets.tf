@@ -2,6 +2,7 @@ locals {
   runtime_secret_ids = toset([
     "${var.name_prefix}-db-password",
     "${var.name_prefix}-grafana-admin-password",
+    "${var.name_prefix}-gateway-secret",
   ])
 }
 

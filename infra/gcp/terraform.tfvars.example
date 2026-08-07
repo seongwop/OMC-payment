@@ -7,5 +7,5 @@ zone   = "asia-northeast3-a"
 name_prefix = "omc-payment"
 network_cidr = "10.20.0.0/24"
 
-# The default VM set consumes the current 8-vCPU E2 quota:
-# app e2-standard-2 + infra e2-standard-4 + test e2-standard-2.
+# The default VM set requires 10 E2 vCPUs:
+# app 2 x e2-standard-2 + infra e2-standard-4 + test e2-standard-2.

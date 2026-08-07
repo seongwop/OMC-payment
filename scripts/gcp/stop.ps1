@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 
 & gcloud compute instances stop `
     omc-payment-app-vm `
+    omc-payment-app-2-vm `
     omc-payment-test-vm `
     --project $ProjectId `
     --zone $Zone `
