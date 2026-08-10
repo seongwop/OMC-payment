@@ -1,0 +1,10 @@
+services:
+  payment-service:
+    environment:
+      # Two application instances x four listeners = eight group consumers.
+      KAFKA_TOPIC_DEFAULT_PARTITIONS: "8"
+      KAFKA_LISTENER_CONCURRENCY: "4"
+      # Keep unrelated background jobs out of the rebalance measurement.
+      PAYMENT_RECONCILIATION_ENABLED: "false"
+      PAYMENT_UNKNOWN_RECOVERY_ENABLED: "false"
+      PAYMENT_EXPIRATION_ENABLED: "false"
