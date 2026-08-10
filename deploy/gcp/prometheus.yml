@@ -9,12 +9,22 @@ scrape_configs:
       - targets: ["10.20.0.10:8085"]
         labels:
           role: app
+          node: app-1
+      - targets: ["10.20.0.11:8085"]
+        labels:
+          role: app
+          node: app-2
 
   - job_name: node
     static_configs:
       - targets: ["10.20.0.10:9100"]
         labels:
           role: app
+          node: app-1
+      - targets: ["10.20.0.11:9100"]
+        labels:
+          role: app
+          node: app-2
       - targets: ["10.20.0.20:9100"]
         labels:
           role: infra

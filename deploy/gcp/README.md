@@ -1,56 +1,61 @@
-# OMC Payment GCP deployment
+# GCP Benchmark Environment
 
-This deployment keeps the first benchmark topology intentionally small:
+실제 PG 대신 WireMock을 사용하는 성능·정합성 검증 전용 환경입니다. 모든 VM은 고정 private IP만 사용하고 운영자 SSH는 IAP로 제한합니다.
 
-- `omc-payment-app-vm`: payment-service, `e2-standard-2`
-- `omc-payment-infra-vm`: PostgreSQL, Redis, Kafka, ZooKeeper, WireMock, `e2-standard-4`
-- `omc-payment-test-vm`: k6, payment-test-tools, Prometheus, Grafana, `e2-standard-2`
+## Topology
 
-All VMs have fixed private IPs and no external IP. Access is through IAP SSH.
-The three VMs consume the current Seoul-region E2 quota of 8 vCPUs.
-PostgreSQL uses its own persistent disk. Kafka logs and ZooKeeper state share a
-second persistent disk so their cluster metadata survives an infra VM rebuild.
+| VM | 사양 | 역할 |
+| --- | --- | --- |
+| `omc-payment-app-vm` | `e2-standard-2` | payment-service app-1 |
+| `omc-payment-app-2-vm` | `e2-standard-2` | 스케일아웃 비교용 app-2 |
+| `omc-payment-infra-vm` | `e2-standard-4` | PostgreSQL, Redis, Kafka, ZooKeeper, WireMock |
+| `omc-payment-test-vm` | `e2-standard-2` | k6, Event Driver, Prometheus, Grafana |
+
+기본 프로비저닝 합계는 10 vCPU입니다. PostgreSQL과 Kafka·ZooKeeper는 서로 다른 persistent disk를 사용하고, 서비스 VM은 상태를 저장하지 않습니다.
+
+API 부하는 app-1을 직접 호출합니다. 두 App VM 비교는 load balancer가 없는 현재 구성에서 Kafka consumer group을 통해 입력을 분산하므로, HTTP 수평 확장 결과로 해석하지 않습니다.
 
 ## Deploy
 
-From the repository root:
+단일 App 기준 측정은 다음 명령을 사용합니다.
 
 ```powershell
 .\scripts\gcp\deploy.ps1
 ```
 
-The script applies Terraform, creates missing Secret Manager versions, builds
-the two application images with Cloud Build, uploads the role-specific Compose
-files, and checks each role's health.
-
-The verifier is disabled during load generation. To deploy it enabled:
+두 App VM에 동일 이미지를 배포하려면 `-ScaleOut`을 추가합니다.
 
 ```powershell
-.\scripts\gcp\deploy.ps1 -SkipTerraform -SkipBuild -EnableVerifier -ImageTag IMAGE_TAG
+.\scripts\gcp\deploy.ps1 -ScaleOut
 ```
 
-## GitHub Actions CI/CD
+파티션과 인스턴스별 listener concurrency도 배포 인자로 고정할 수 있습니다.
 
-Pull requests targeting `main` run `.github/workflows/ci.yml`:
+```powershell
+.\scripts\gcp\deploy.ps1 -ScaleOut -KafkaTopicPartitions 8 -KafkaListenerConcurrency 4
+```
 
-- Gradle unit and Testcontainers integration tests
-- Spring Boot JAR and both Docker image builds
-- Docker Compose, shell script and Terraform validation
+스크립트는 Terraform 적용, DB·Grafana·Gateway Secret Manager 확인, Cloud Build, 역할별 Compose 전송과 health check를 수행합니다. 부하 중 verifier는 기본 비활성화하며 정합성 API가 필요할 때만 `-EnableVerifier`를 사용합니다. `TOSS_SECRET_KEY`만 실제 credential이 아닌 WireMock 인증용 고정 테스트 값입니다.
 
-Every push to `main` runs `.github/workflows/gcp-cd.yml`:
+## Test overrides
 
-- tests and builds both application images
-- pushes the immutable commit SHA and `latest` tags to Artifact Registry
-- authenticates without a service-account key through Workload Identity Federation
-- deploys infra, app and test roles through IAP SSH
-- waits for each role's health check before completing
+다음 파일은 운영 배포 구성이 아니라 장애 재현 시 기본 `docker-compose.app.yml` 위에 합성하는 테스트 전용 override입니다.
 
-The CD workflow deliberately does not run k6. A deployed commit can be benchmarked
-separately so the test window and image SHA remain explicit.
+| 파일 | 용도 |
+| --- | --- |
+| `docker-compose.scaleout-8p8c.yml` | 2대에서 전체 8 partitions·8 consumers 구성 |
+| `docker-compose.failover-test.yml` | Kafka failover 중 unrelated scheduler 비활성화 |
+| `docker-compose.scheduler-test.yml` | 두 인스턴스 reconciliation 동시 실행 재현 |
 
-## Run the default load test
+## CI/CD
 
-The default remote command runs 300 RPS for 90 seconds with 20% PG timeout:
+Pull request CI는 Java 21 테스트, 두 애플리케이션 이미지, Compose·shell·Terraform 구성을 검증합니다. `main` 배포는 Workload Identity Federation으로 인증하고 immutable commit SHA 이미지를 두 App VM에 배포합니다. WIF provider는 지정 저장소의 `main` 브랜치만 허용합니다.
+
+CD에서는 k6를 실행하지 않습니다. 배포 이미지 SHA와 측정 시간을 고정한 뒤 별도 테스트로 실행합니다.
+
+## Load test
+
+다음 예시는 300 RPS·60초·PG timeout 20% 조건입니다.
 
 ```powershell
 gcloud compute ssh omc-payment-test-vm `
@@ -59,56 +64,29 @@ gcloud compute ssh omc-payment-test-vm `
   --tunnel-through-iap `
   --ssh-flag=-P `
   --ssh-flag=22 `
-  --command "sudo RATE=300 TIMEOUT_WEIGHT=20 /opt/omc-payment/scripts/run-load-test.sh"
+  --command "sudo RATE=300 DURATION=60s TIMEOUT_WEIGHT=20 /opt/omc-payment/scripts/run-load-test.sh"
 ```
 
-## Local tunnels
+## Access and cost control
 
-Payment service:
+Payment와 Grafana는 IAP 터널로 접근합니다.
 
 ```powershell
 gcloud compute ssh omc-payment-app-vm --project omc-payment --zone asia-northeast3-a --tunnel-through-iap --ssh-flag=-P --ssh-flag=22 -- -N -L 8085:localhost:8085
-```
-
-Grafana:
-
-```powershell
 gcloud compute ssh omc-payment-test-vm --project omc-payment --zone asia-northeast3-a --tunnel-through-iap --ssh-flag=-P --ssh-flag=22 -- -N -L 13000:localhost:13000
 ```
 
-The Grafana password is stored in Secret Manager as
-`omc-payment-grafana-admin-password`.
-
-## Cost control
-
-Stop the VMs after a test:
+측정하지 않을 때는 VM을 중지합니다.
 
 ```powershell
 .\scripts\gcp\stop.ps1
-```
-
-Start them in dependency order:
-
-```powershell
 .\scripts\gcp\start.ps1
 ```
 
-If ZooKeeper state was lost while an older Kafka disk survived, preserve the
-old Kafka directory and align the new cluster with:
-
-```bash
-sudo bash /opt/omc-payment/scripts/recover-kafka-after-zookeeper-loss.sh \
-  data-pre-zookeeper-recovery-YYYYMMDD
-```
-
-The script moves the previous Kafka data to the supplied backup directory
-instead of deleting it.
-
-Destroy all Terraform-managed resources when the environment is no longer
-needed:
+`start.ps1`은 단일 App 구성으로 시작합니다. 스케일아웃 테스트에서는 두 번째 App VM도 시작하도록 옵션을 추가합니다.
 
 ```powershell
-$env:TF_VAR_project_id = "omc-payment"
-$env:TF_VAR_operator_email = "YOUR_ACCOUNT"
-terraform -chdir=infra/gcp destroy
+.\scripts\gcp\start.ps1 -ScaleOut
 ```
+
+Terraform 관리 리소스를 완전히 제거하려면 프로젝트와 운영자 계정을 명시한 뒤 `terraform -chdir=infra/gcp destroy`를 실행합니다.

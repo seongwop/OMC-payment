@@ -3,6 +3,11 @@ param(
     [string]$Region = "asia-northeast3",
     [string]$Zone = "asia-northeast3-a",
     [string]$ImageTag = "",
+    [ValidateRange(1, 1000)]
+    [int]$KafkaTopicPartitions = 16,
+    [ValidateRange(1, 1000)]
+    [int]$KafkaListenerConcurrency = 8,
+    [switch]$ScaleOut,
     [switch]$SkipTerraform,
     [switch]$SkipBuild,
     [switch]$EnableVerifier,
@@ -18,6 +23,12 @@ $TerraformDir = Join-Path $RepoRoot "infra\gcp"
 $RemoteDir = "/opt/omc-payment"
 $RegistryHost = "$Region-docker.pkg.dev"
 $Registry = "$RegistryHost/$ProjectId/omc-payment"
+$AppVmNames = if ($ScaleOut) {
+    @("omc-payment-app-vm", "omc-payment-app-2-vm")
+}
+else {
+    @("omc-payment-app-vm")
+}
 
 function Invoke-Checked {
     param(
@@ -240,15 +251,15 @@ function New-RoleArchive {
 function Deploy-Role {
     param(
         [string]$Role,
-        [string]$Archive
+        [string]$Archive,
+        [string]$VmName
     )
 
-    $vmName = "omc-payment-$Role-vm"
     $remoteArchive = "/tmp/omc-payment-$Role.tar.gz"
-    Write-Host "Deploying $Role to $vmName..."
+    Write-Host "Deploying $Role to $VmName..."
 
     Invoke-Checked "gcloud" @(
-        "compute", "scp", $Archive, "${vmName}:$remoteArchive",
+        "compute", "scp", $Archive, "${VmName}:$remoteArchive",
         "--project", $ProjectId,
         "--zone", $Zone,
         "--tunnel-through-iap",
@@ -259,7 +270,7 @@ function Deploy-Role {
     $remoteCommand = "sudo mkdir -p $RemoteDir; sudo tar -xzf $remoteArchive -C $RemoteDir --no-same-owner; sudo rm -f $remoteArchive; sudo chmod +x $RemoteDir/scripts/*.sh; sudo bash $RemoteDir/scripts/deploy-role.sh $Role $RegistryHost"
 
     Invoke-Checked "gcloud" @(
-        "compute", "ssh", $vmName,
+        "compute", "ssh", $VmName,
         "--project", $ProjectId,
         "--zone", $Zone,
         "--tunnel-through-iap",
@@ -271,14 +282,16 @@ function Deploy-Role {
 }
 
 function Wait-ForRoleHealth {
-    param([string]$Role)
+    param(
+        [string]$Role,
+        [string]$VmName
+    )
 
-    $vmName = "omc-payment-$Role-vm"
     $healthCommand = "sudo timeout 610 bash $RemoteDir/scripts/wait-role-health.sh $Role"
 
-    Write-Host "Waiting for $Role health..."
+    Write-Host "Waiting for $Role health on $VmName..."
     Invoke-Checked "gcloud" @(
-        "compute", "ssh", $vmName,
+        "compute", "ssh", $VmName,
         "--project", $ProjectId,
         "--zone", $Zone,
         "--tunnel-through-iap",
@@ -331,6 +344,7 @@ if (-not $SkipTerraform) {
 
 Ensure-SecretVersion "omc-payment-db-password"
 Ensure-SecretVersion "omc-payment-grafana-admin-password"
+Ensure-SecretVersion "omc-payment-gateway-secret"
 
 if (-not $SkipBuild) {
     Push-Location $RepoRoot
@@ -350,6 +364,7 @@ if (-not $SkipBuild) {
 
 $dbPassword = Get-SecretValue "omc-payment-db-password"
 $grafanaPassword = Get-SecretValue "omc-payment-grafana-admin-password"
+$gatewaySecret = Get-SecretValue "omc-payment-gateway-secret"
 $verifierEnabled = if ($EnableVerifier) { "true" } else { "false" }
 
 $envLines = @(
@@ -362,9 +377,9 @@ $envLines = @(
     "DB_PASSWORD=$dbPassword",
     "GRAFANA_ADMIN_PASSWORD=$grafanaPassword",
     "TOSS_SECRET_KEY=test-secret-key",
-    "GATEWAY_SECRET=local-secret",
-    "KAFKA_TOPIC_DEFAULT_PARTITIONS=3",
-    "KAFKA_LISTENER_CONCURRENCY=3",
+    "GATEWAY_SECRET=$gatewaySecret",
+    "KAFKA_TOPIC_DEFAULT_PARTITIONS=$KafkaTopicPartitions",
+    "KAFKA_LISTENER_CONCURRENCY=$KafkaListenerConcurrency",
     "TOSS_READ_TIMEOUT_MS=3000",
     "TOSS_MAX_CONNECTIONS=170",
     "TOSS_MAX_CONNECTIONS_PER_ROUTE=170",
@@ -377,7 +392,10 @@ $envLines = @(
 )
 
 foreach ($role in $Roles) {
-    Wait-ForDocker "omc-payment-$role-vm"
+    $targetVms = if ($role -eq "app") { $AppVmNames } else { @("omc-payment-$role-vm") }
+    foreach ($targetVm in $targetVms) {
+        Wait-ForDocker $targetVm
+    }
 }
 
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("omc-payment-deploy-" + [Guid]::NewGuid().ToString("N"))
@@ -385,8 +403,11 @@ New-Item -ItemType Directory -Path $tempRoot | Out-Null
 try {
     foreach ($role in $Roles) {
         $archive = New-RoleArchive -Role $role -TempRoot $tempRoot -EnvLines $envLines
-        Deploy-Role -Role $role -Archive $archive
-        Wait-ForRoleHealth -Role $role
+        $targetVms = if ($role -eq "app") { $AppVmNames } else { @("omc-payment-$role-vm") }
+        foreach ($targetVm in $targetVms) {
+            Deploy-Role -Role $role -Archive $archive -VmName $targetVm
+            Wait-ForRoleHealth -Role $role -VmName $targetVm
+        }
     }
 }
 finally {

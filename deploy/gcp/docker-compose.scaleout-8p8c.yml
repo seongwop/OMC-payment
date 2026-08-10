@@ -1,0 +1,6 @@
+services:
+  payment-service:
+    environment:
+      # Normal two-instance topology: four order.created consumers per app.
+      KAFKA_TOPIC_DEFAULT_PARTITIONS: "8"
+      KAFKA_LISTENER_CONCURRENCY: "4"

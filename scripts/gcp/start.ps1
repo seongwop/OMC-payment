@@ -1,6 +1,7 @@
 param(
     [string]$ProjectId = "omc-payment",
-    [string]$Zone = "asia-northeast3-a"
+    [string]$Zone = "asia-northeast3-a",
+    [switch]$ScaleOut
 )
 
 Set-StrictMode -Version Latest
@@ -47,13 +48,22 @@ for ($attempt = 1; $attempt -le 60; $attempt++) {
     Start-Sleep -Seconds 10
 }
 
-Invoke-Checked @(
-    "compute", "instances", "start",
-    "omc-payment-app-vm", "omc-payment-test-vm",
+$appVmNames = @("omc-payment-app-vm")
+if ($ScaleOut) {
+    $appVmNames += "omc-payment-app-2-vm"
+}
+
+$applicationStartArguments = @(
+    "compute", "instances", "start"
+)
+$applicationStartArguments += $appVmNames
+$applicationStartArguments += @(
+    "omc-payment-test-vm",
     "--project", $ProjectId,
     "--zone", $Zone,
     "--quiet"
 )
+Invoke-Checked $applicationStartArguments
 
 Invoke-Checked @(
     "compute", "instances", "list",

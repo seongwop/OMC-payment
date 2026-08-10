@@ -2,7 +2,6 @@
 // bootJar 비활성화는 루트 build.gradle에서 처리됨
 
 dependencies {
-    implementation 'com.fasterxml.uuid:java-uuid-generator:5.1.0'
     compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
     compileOnly 'io.micrometer:micrometer-core'
     compileOnly 'io.micrometer:micrometer-tracing'
@@ -11,8 +10,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
     compileOnly 'org.springdoc:springdoc-openapi-starter-common:2.8.9'
-    implementation 'com.github.f4b6a3:uuid-creator:5.3.7'
-
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

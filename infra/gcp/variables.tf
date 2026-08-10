@@ -60,6 +60,12 @@ variable "vm_specs" {
       boot_disk_gb = 30
       internal_ip  = "10.20.0.10"
     }
+    app-2 = {
+      role         = "app"
+      machine_type = "e2-standard-2"
+      boot_disk_gb = 30
+      internal_ip  = "10.20.0.11"
+    }
     infra = {
       role         = "infra"
       machine_type = "e2-standard-4"
