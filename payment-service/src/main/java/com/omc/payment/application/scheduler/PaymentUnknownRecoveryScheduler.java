@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "payment.unknown-recovery.enabled", havingValue = "true", matchIfMissing = true)
-public class PaymentUnknownRecoverySchedular {
+public class PaymentUnknownRecoveryScheduler {
 
     private final PaymentUnknownRecoveryService paymentUnknownRecoveryService;
 
@@ -23,7 +23,7 @@ public class PaymentUnknownRecoverySchedular {
             initialDelayString = "${payment.unknown-recovery.initial-delay-ms:60000}",
             fixedDelayString = "${payment.unknown-recovery.fixed-delay-ms:30000}"
     )
-    public void recoverUnknownPayments(){
+    public void recoverUnknownPayments() {
         log.debug("UNKNOWN 결제 처리를 시작합니다. batchSize={}", batchSize);
         paymentUnknownRecoveryService.recoverPendingPayments(batchSize);
     }

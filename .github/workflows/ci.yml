@@ -79,6 +79,9 @@ jobs:
           docker compose -f deploy/gcp/docker-compose.infra.yml config --quiet
           docker compose -f deploy/gcp/docker-compose.app.yml config --quiet
           docker compose -f deploy/gcp/docker-compose.test.yml config --quiet
+          docker compose -f deploy/gcp/docker-compose.app.yml -f deploy/gcp/docker-compose.scaleout-8p8c.yml config --quiet
+          docker compose -f deploy/gcp/docker-compose.app.yml -f deploy/gcp/docker-compose.failover-test.yml config --quiet
+          docker compose -f deploy/gcp/docker-compose.app.yml -f deploy/gcp/docker-compose.scheduler-test.yml config --quiet
 
       - name: Check Terraform formatting
         run: terraform -chdir=infra/gcp fmt -check -recursive

@@ -1,0 +1,9 @@
+services:
+  payment-service:
+    environment:
+      # Test-only override: both scale-out instances fire the reconciliation
+      # job on the same wall-clock second so duplicate execution is observable.
+      PAYMENT_RECONCILIATION_ENABLED: "true"
+      PAYMENT_RECONCILIATION_CRON: "0 * * * * *"
+      PAYMENT_UNKNOWN_RECOVERY_ENABLED: "false"
+      PAYMENT_EXPIRATION_ENABLED: "false"
