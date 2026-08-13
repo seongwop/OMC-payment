@@ -140,7 +140,10 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
         throw new PaymentGatewayCapacityExceededException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
     }
 
-    private PaymentGatewayResult.Payment getPaymentFallback(PaymentGatewayCommand.GetPayment command, Throwable e) {
+    private PaymentGatewayResult.Payment getPaymentFallback(
+            PaymentGatewayCommand.GetPayment command,
+            BulkheadFullException e
+    ) {
         throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
     }
 
