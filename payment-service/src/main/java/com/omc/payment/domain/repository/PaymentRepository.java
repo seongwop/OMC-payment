@@ -17,12 +17,6 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     Page<Payment> findAllByUserId(UUID userId, Pageable pageable);
 
-    // UNKNOWN 상태 결제를 오래된 수정 순서로 조회
-    List<Payment> findByPaymentStatusInOrderByUpdatedAtAsc(
-            Collection<PaymentStatus> paymentStatuses,
-            Pageable pageable
-    );
-
     // TTL이 지난 미완료 결제를 오래된 수정 시각 순서로 조회
     List<Payment> findByPaymentStatusAndUpdatedAtBeforeOrderByUpdatedAtAsc(
             PaymentStatus paymentStatus,

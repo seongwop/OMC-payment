@@ -2,6 +2,7 @@ package com.omc.payment.application.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
@@ -33,6 +34,12 @@ public class PaymentReconciliationScheduler {
     @Scheduled(
             cron = "${payment.reconciliation.cron:0 0 4 * * *}",
             zone = "${payment.reconciliation.zone:Asia/Seoul}"
+    )
+    // 다중 인스턴스에서 같은 대조 배치가 동시에 실행되지 않도록 분산 잠금 적용
+    @SchedulerLock(
+            name = "paymentReconciliationJob",
+            lockAtLeastFor = "${payment.reconciliation.lock-at-least-for:PT1M}",
+            lockAtMostFor = "${payment.reconciliation.lock-at-most-for:PT30M}"
     )
     public void runPaymentReconciliation() {
         if (lookbackDays <= 0) {

@@ -25,6 +25,10 @@ dependencies {
     // Batch
     implementation 'org.springframework.boot:spring-boot-starter-batch'
 
+    // Distributed scheduler lock
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:5.13.0'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-redis-spring:5.13.0'
+
     // Observability
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.github.resilience4j:resilience4j-bulkhead'

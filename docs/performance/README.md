@@ -15,7 +15,7 @@
 | 7 | API·Kafka·인프라 조건 교차 비교 | 입력 경로와 무관한 Outbox 고정 병목 확인 | [Outbox 후속 병목](kafka/04-outbox-bottleneck.md) |
 | 8 | 1×4 vCPU↔2×2 vCPU | 동일 총 자원의 수직·수평 배치 비교 | [동일 자원 토폴로지 비교](scaling/01-topology-comparison.md) |
 | 9 | consumer 인스턴스 강제 중단 | N-1 처리 용량과 최종 정합성 확인 | [consumer 장애 복구](resilience/01-consumer-failover.md) |
-| 10 | 다중 스케줄러 강제 중첩 | UNKNOWN 중복 조회와 Batch 실행 경합 재현 | [스케줄러 경합 재현](resilience/02-scheduler-contention.md) |
+| 10 | 다중 스케줄러 강제 중첩 | UNKNOWN 중복 조회·Batch 경합 재현과 방어 구현 검증 | [스케줄러 경합 재현](resilience/02-scheduler-contention.md) |
 
 측정값을 읽는 기준과 비교 제약은 [측정 방법](methodology.md)에 정리했다.
 

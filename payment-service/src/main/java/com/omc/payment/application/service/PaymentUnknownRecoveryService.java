@@ -10,14 +10,13 @@ import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
-import com.omc.payment.domain.repository.PaymentRepository;
+import com.omc.payment.infrastructure.repository.PaymentRecoveryClaimRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.time.Duration;
 import java.util.UUID;
 
 @Slf4j
@@ -25,18 +24,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PaymentUnknownRecoveryService {
 
-    private final List<PaymentStatus> RECOVERABLE_STATUSES = List.of(
-            PaymentStatus.CONFIRM_UNKNOWN,
-            PaymentStatus.CANCEL_UNKNOWN
-    );
-
-    private final PaymentRepository paymentRepository;
     private final PaymentGatewayPort paymentGatewayPort;
     private final PaymentIdempotencyService paymentIdempotencyService;
     private final PaymentTransactionService paymentTransactionService;
+    private final PaymentRecoveryClaimRepository paymentRecoveryClaimRepository;
 
     @Value("${payment.unknown-recovery.max-retry-count:3}")
     private int maxRetryCount;
+
+    @Value("${payment.unknown-recovery.lease-ms:600000}")
+    private long recoveryLeaseMs;
 
     private final String NETWORK_CANCEL_REASON = "PG 승인 성공 후 서비스 완료 처리 실패로 망 취소합니다.";
 
@@ -45,12 +42,20 @@ public class PaymentUnknownRecoveryService {
             log.warn(" batchSize가 올바르지 않습니다. batchSize={}", batchSize);
             return;
         }
-        List<Payment> payments = paymentRepository.findByPaymentStatusInOrderByUpdatedAtAsc(
-                RECOVERABLE_STATUSES,
-                PageRequest.of(0, batchSize)
+        // 다중 인스턴스가 같은 UNKNOWN 결제를 조회하지 않도록 만료 시간이 있는 작업 소유권 선점
+        String claimOwner = UUID.randomUUID().toString();
+        var paymentIds = paymentRecoveryClaimRepository.claimBatch(
+                claimOwner,
+                batchSize,
+                Duration.ofMillis(Math.max(1, recoveryLeaseMs))
         );
-        for (Payment payment : payments) {
-            recover(payment.getPaymentId());
+        try {
+            for (UUID paymentId : paymentIds) {
+                recover(paymentId);
+            }
+        } finally {
+            // 복구 결과와 관계없이 현재 실행에서 획득한 작업 소유권 해제
+            paymentRecoveryClaimRepository.releaseClaims(claimOwner);
         }
     }
 

@@ -106,6 +106,7 @@ payment:
     fixed-delay-ms: ${PAYMENT_UNKNOWN_RECOVERY_FIXED_DELAY_MS:30000}
     batch-size: ${PAYMENT_UNKNOWN_RECOVERY_BATCH_SIZE:100}
     max-retry-count: ${PAYMENT_UNKNOWN_RECOVERY_MAX_RETRY_COUNT:3}
+    lease-ms: ${PAYMENT_UNKNOWN_RECOVERY_LEASE_MS:600000}
   expiration:
     enabled: ${PAYMENT_EXPIRATION_ENABLED:true}
     initial-delay-ms: ${PAYMENT_EXPIRATION_INITIAL_DELAY_MS:60000}
@@ -119,6 +120,8 @@ payment:
     chunk-size: ${PAYMENT_RECONCILIATION_CHUNK_SIZE:50}
     page-size: ${PAYMENT_RECONCILIATION_PAGE_SIZE:100}
     lookback-days: ${PAYMENT_RECONCILIATION_LOOKBACK_DAYS:3}
+    lock-at-least-for: ${PAYMENT_RECONCILIATION_LOCK_AT_LEAST_FOR:PT1M}
+    lock-at-most-for: ${PAYMENT_RECONCILIATION_LOCK_AT_MOST_FOR:PT30M}
 
 resilience4j:
   retry:
